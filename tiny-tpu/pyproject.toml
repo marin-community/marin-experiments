@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tiny-tpu"
+version = "0.1.0"
+description = "Tiny TPU training experiment using marin as a library dependency."
+requires-python = ">=3.11,<3.13"
+# Plain `marin` (no [cpu]/[tpu] extra) — we only need enough marin to construct
+# ExecutorSteps and submit the fray job. The TPU environment is bootstrapped
+# remotely by the fray job submission path, and torch/torchvision (the only
+# real content of marin's cpu extra) isn't needed for the launch side.
+dependencies = [
+    "marin",
+    "marin-levanter",
+    "marin-iris",
+    "marin-zephyr",
+    "marin-rigging",
+]
+
+# Iris's remote worker runs `uv sync --all-packages --no-group dev`, which
+# errors if the dev group doesn't exist. Define an empty one so --no-group
+# has a group to exclude.
+[dependency-groups]
+dev = []
+
+[tool.uv]
+fork-strategy = "fewest"
+# Mirrored from submodules/marin/pyproject.toml; omitting these makes uv
+# resolution fail in the same way it does for marin itself.
+override-dependencies = [
+    "omegaconf>=2.4.0.dev4",
+    "antlr4-python3-runtime==4.11",
+    "python-multipart>=0.0.22",
+    "wheel>=0.46.2",
+    "datasets>=3.1.0,<4.0.0",
+    "equinox>=0.11.10",
+]
+# ./vendor is a local wheel index that ships with the iris job bundle. (The
+# directory is named "vendor" rather than "wheels" because the outer
+# marin-experiments/.gitignore excludes wheels/.) To refresh it after marin
+# source edits:
+#     (cd ../submodules/marin && for p in rigging fray haliax iris zephyr levanter marin; do \
+#         uv build --no-sources --wheel lib/$p -o ../../tiny-tpu/vendor; done)
+find-links = [
+    "./vendor",
+    "https://github.com/marin-community/marin/releases/expanded_assets/dupekit-0.1.0-40ac799",
+    "https://github.com/marin-community/kitoken/releases/expanded_assets/kitoken-0.10.2-a3012f4",
+]
+
+# marin depends on resiliparse>=0.17.2 which only exists on this custom index.
+# Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv
+# resolves resiliparse from PyPI which caps at 0.16.0 and resolution fails.
+[[tool.uv.index]]
+name = "marin-resiliparse"
+url = "https://marin-community.github.io/chatnoir-resiliparse/simple"
+
+[tool.uv.sources]
+resiliparse = { index = "marin-resiliparse" }
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
