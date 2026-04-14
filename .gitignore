@@ -1,5 +1,3 @@
-vendor/
-
 # Per-experiment venvs (use experiment-local venvs)
 */.venv/
 .venv/

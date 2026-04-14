@@ -48,7 +48,7 @@ from levanter.utils.flop_utils import lm_flops_per_token
 from levanter.utils.jax_utils import parameter_count
 from levanter.utils.logging import LoadingTimeTrackerIterator
 
-# Local model module (sibling file in tiny-tpu/).
+# Local model module (sibling file in speech-asr/).
 from model import GrugModelConfig, Transformer
 
 logger = logging.getLogger(__name__)

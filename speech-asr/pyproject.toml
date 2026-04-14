@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "speech-asr"
+version = "0.1.0"
+description = "End-to-end LibriSpeech speech-token training experiment using marin as a library dependency."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "marin",
+    "marin-levanter",
+    "marin-iris",
+    "marin-zephyr",
+    "marin-rigging",
+    "transformers>=4.47",
+    "tokenizers>=0.20",
+    "torch",
+    "torchaudio",
+    "soundfile",
+]
+
+# Iris's remote worker runs `uv sync --all-packages --no-group dev`, which
+# errors if the dev group doesn't exist. Define an empty one so --no-group
+# has a group to exclude.
+[project.optional-dependencies]
+tpu = ["jax[tpu]==0.8.0", "torch==2.9.0", "torchvision==0.24.0"]
+
+[dependency-groups]
+dev = []
+
+[tool.uv]
+fork-strategy = "fewest"
+prerelease = "allow"
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux'",
+]
+# Mirrored from submodules/marin/pyproject.toml; omitting these makes uv
+# resolution fail in the same way it does for marin itself.
+override-dependencies = [
+    "omegaconf>=2.4.0.dev4",
+    "antlr4-python3-runtime==4.11",
+    "python-multipart>=0.0.22",
+    "wheel>=0.46.2",
+    "datasets>=3.1.0,<4.0.0",
+    "equinox>=0.11.10",
+]
+
+find-links = [
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-haliax-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-levanter-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-iris-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-zephyr-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-rigging-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-fray-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/dupekit-0.1.0-40ac799",
+    "https://github.com/marin-community/kitoken/releases/expanded_assets/kitoken-0.10.2-a3012f4",
+]
+
+# marin depends on resiliparse>=0.17.2 which only exists on this custom index.
+# Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv
+# resolves resiliparse from PyPI which caps at 0.16.0 and resolution fails.
+[[tool.uv.index]]
+name = "marin-resiliparse"
+url = "https://marin-community.github.io/chatnoir-resiliparse/simple"
+
+[tool.uv.sources]
+resiliparse = { index = "marin-resiliparse" }
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

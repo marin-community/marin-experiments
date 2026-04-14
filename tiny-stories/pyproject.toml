@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tiny-tpu"
+name = "tiny-stories"
 version = "0.1.0"
-description = "Tiny TPU training experiment using marin as a library dependency."
+description = "End-to-end TinyStories training experiment using marin as a library dependency."
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "marin",
@@ -26,6 +26,11 @@ dev = []
 
 [tool.uv]
 fork-strategy = "fewest"
+prerelease = "allow"
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux'",
+]
 # Mirrored from submodules/marin/pyproject.toml; omitting these makes uv
 # resolution fail in the same way it does for marin itself.
 override-dependencies = [
@@ -36,14 +41,15 @@ override-dependencies = [
     "datasets>=3.1.0,<4.0.0",
     "equinox>=0.11.10",
 ]
-# ./vendor is a local wheel index that ships with the iris job bundle. (The
-# directory is named "vendor" rather than "wheels" because the outer
-# marin-experiments/.gitignore excludes wheels/.) To refresh it after marin
-# source edits:
-#     (cd ../submodules/marin && for p in rigging fray haliax iris zephyr levanter marin; do \
-#         uv build --no-sources --wheel lib/$p -o ../../tiny-tpu/vendor; done)
+
 find-links = [
-    "./vendor",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-haliax-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-levanter-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-iris-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-zephyr-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-rigging-latest",
+    "https://github.com/marin-community/marin/releases/expanded_assets/marin-fray-latest",
     "https://github.com/marin-community/marin/releases/expanded_assets/dupekit-0.1.0-40ac799",
     "https://github.com/marin-community/kitoken/releases/expanded_assets/kitoken-0.10.2-a3012f4",
 ]
