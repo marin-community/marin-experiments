@@ -1,40 +1,8 @@
 # tiny-stories
 
-A minimal, end-to-end marin experiment: download [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) from HuggingFace, tokenize it, and train a ~30M-param Grug decoder-only transformer. It exercises the full marin pipeline (HF download → tokenize → train) in one file.
+Download [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories), tokenize it with `marin-community/marin-tokenizer`, train a ~30M-param Grug decoder-only transformer.
 
-**Copy this directory as the skeleton for your own experiment.** Marin is pulled in as a library via `find-links` wheels in `pyproject.toml` — no submodule, no vendoring.
-
-## Run on the shared marin cluster (TPU)
-
-```
-uv run iris --cluster=marin job run python launch.py --region=europe-west4
-```
-
-`--cluster=marin` targets the shared marin coordinator. `--region` is required: TPU availability is region-scoped, and the child job otherwise inherits the coordinator's region (`us-central1`), which has no `v6e-4` capacity. The default slice is `v6e-4` in `europe-west4`, 2000 steps, `bfloat16` compute.
-
-## Local smoke test (CPU)
-
-Start a local iris cluster in one terminal:
-
-```
-iris --cluster=local cluster start --local
-```
-
-Submit the pipeline:
-
-```
-ACCELERATOR=cpu MARIN_PREFIX=/tmp/marin \
-    uv run iris --config=submodules/marin/lib/iris/examples/local.yaml \
-    job run -- python launch.py
-```
-
-Tokenizes the first ~1k records per shard and trains for 1 step — enough to prove download → tokenize → train → checkpoint works. ~30s once wheels are cached.
-
-You can bypass iris entirely and just run the executor:
-
-```
-ACCELERATOR=cpu MARIN_PREFIX=/tmp/marin uv run python launch.py
-```
+See the [repo root README](../README.md) for the getting-started workflow (copy, adapt, smoke-test, scale up). This file documents what's specific to the tiny-stories template.
 
 ## Pipeline stages
 
@@ -70,7 +38,7 @@ tinystories_tokenized = ExecutorStep(
 )
 ```
 
-Uses `marin-community/marin-tokenizer`. CPU caps `sample_count=1000` per shard; TPU/GPU tokenize everything. Swap the tokenizer by changing `MARIN_TOKENIZER`.
+CPU caps `sample_count=1000` per shard; TPU/GPU tokenize everything. Swap the tokenizer by changing `MARIN_TOKENIZER`.
 
 ### 3. `tiny_stories_trial` — training
 

@@ -1,40 +1,10 @@
 # speech-asr
 
-A minimal, end-to-end marin experiment: download [LibriSpeech](https://huggingface.co/datasets/openslr/librispeech_asr), encode audio with [kyutai/mimi](https://huggingface.co/kyutai/mimi), train a BPE tokenizer over the token stream, tokenize, and train a ~30M-param Grug decoder-only LM on `<audio_tokens> <|sep|> <transcript>` sequences. Five stages wired from one `launch.py`.
+Download [LibriSpeech](https://huggingface.co/datasets/openslr/librispeech_asr), encode audio with [kyutai/mimi](https://huggingface.co/kyutai/mimi), train a BPE tokenizer over the token stream, tokenize, and train a ~30M-param Grug decoder-only LM on `<audio_tokens> <|sep|> <transcript>` sequences.
 
-**Copy this directory as the skeleton for your own experiment.** Marin is pulled in as a library via `find-links` wheels in `pyproject.toml` — no submodule, no vendoring.
+See the [repo root README](../README.md) for the getting-started workflow (copy, adapt, smoke-test, scale up). This file documents what's specific to the speech-asr template.
 
-## Run on the shared marin cluster (TPU)
-
-```
-uv run iris --cluster=marin job run python launch.py --region=europe-west4
-```
-
-`--cluster=marin` targets the shared marin coordinator. `--region` is required: TPU availability is region-scoped, and the child job otherwise inherits `us-central1`, which has no `v6e-4` capacity. Mimi has no TPU kernels, so stage 2 falls back to CPU on TPU jobs; stage 5 runs on `v6e-4` in `europe-west4` at `bfloat16` compute for 2000 steps.
-
-## Local smoke test (CPU)
-
-Start a local iris cluster in one terminal:
-
-```
-iris --cluster=local cluster start --local
-```
-
-Submit the pipeline:
-
-```
-ACCELERATOR=cpu MARIN_PREFIX=/tmp/marin-speech \
-    uv run iris --config=submodules/marin/lib/iris/examples/local.yaml \
-    job run -- python launch.py
-```
-
-Caps Mimi encoding at 20 clips per shard so the PyTorch codec finishes on CPU in ~3 min, then trains for 1 step — enough to prove download → encode → BPE → tokenize → train works end-to-end.
-
-You can bypass iris entirely and just run the executor:
-
-```
-ACCELERATOR=cpu MARIN_PREFIX=/tmp/marin-speech uv run python launch.py
-```
+Notes on accelerator use: Mimi has no TPU kernels, so stage 2 falls back to CPU on TPU jobs. Stage 5 runs on `v6e-4` in `europe-west4` at `bfloat16` for 2000 steps. The CPU smoke test caps Mimi encoding at 20 clips per shard so the PyTorch codec finishes in ~3 min.
 
 ## Pipeline stages
 
