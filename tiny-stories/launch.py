@@ -38,7 +38,7 @@ from levanter.tracker import TrackerConfig
 from levanter.tracker.wandb import WandbConfig
 from levanter.trainer import TrainerConfig
 from marin.datakit.download.huggingface import download_hf_step
-from marin.execution.executor import (
+from marin.execution import (
     ExecutorStep,
     executor_main,
     output_path_of,
