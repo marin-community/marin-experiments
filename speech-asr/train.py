@@ -214,7 +214,6 @@ def _load_candidate_state(
         return load_fn(
             state,
             candidate,
-            discover_latest=False,
             axis_mapping=None,
             mesh=mesh,
             allow_partial=allow_partial,
@@ -224,7 +223,6 @@ def _load_candidate_state(
         wrapped = load_fn(
             {"train_state": state},
             candidate,
-            discover_latest=False,
             axis_mapping=None,
             mesh=mesh,
             allow_partial=allow_partial,
