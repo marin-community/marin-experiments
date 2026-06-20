@@ -49,14 +49,11 @@ override-dependencies = [
     "equinox>=0.11.10",
 ]
 
-find-links = [
-    # marin-* packages (marin-core, marin-levanter, marin-haliax, marin-iris,
-    # marin-zephyr, marin-rigging, marin-fray, marin-finelog) resolve from PyPI
-    # as nightly 0.2.x.dev wheels. The *-latest GitHub-release find-links are
-    # intentionally dropped: they serve stale 0.99.dev wheels that outrank the
-    # fresh 0.2.x.dev PyPI builds by version number.
-    "https://github.com/marin-community/kitoken/releases/expanded_assets/kitoken-0.10.2-a3012f4",
-]
+# marin-* packages (marin-core, marin-levanter, marin-haliax, marin-iris,
+# marin-zephyr, marin-rigging, marin-fray, marin-finelog) resolve from PyPI
+# as nightly 0.2.x.dev wheels. The *-latest GitHub-release find-links are
+# intentionally dropped: they serve stale 0.99.dev wheels that outrank the
+# fresh 0.2.x.dev PyPI builds by version number.
 
 # marin depends on resiliparse>=0.17.2 which only exists on this custom index.
 # Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv

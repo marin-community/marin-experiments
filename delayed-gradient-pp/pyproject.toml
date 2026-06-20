@@ -54,14 +54,10 @@ override-dependencies = [
 ]
 
 # The marin-* dev wheels resolve from PyPI (marin-core, marin-levanter, ... as
-# 0.2.x.devYYYYMMDDHHMM, published nightly). We intentionally do NOT use the
+# 0.2.x.devYYYYMMDDHHMM, published nightly). We intentionally do NOT add the
 # GitHub `*-latest` release find-links here: those serve `0.99.dev<date>` wheels
 # that (a) are frozen at 2026-05-29 and (b) outrank the fresh PyPI `0.2.x.dev`
-# wheels by version, so including them silently pins stale marin code. kitoken
-# ships a pinned native build that is not on PyPI, so it keeps its find-link.
-find-links = [
-    "https://github.com/marin-community/kitoken/releases/expanded_assets/kitoken-0.10.2-a3012f4",
-]
+# wheels by version, so including them silently pins stale marin code.
 
 # marin depends on resiliparse>=0.17.2 which only exists on this custom index.
 # Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv
