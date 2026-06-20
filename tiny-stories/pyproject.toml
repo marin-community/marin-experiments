@@ -8,9 +8,7 @@ version = "0.1.0"
 description = "End-to-end TinyStories training experiment using marin as a library dependency."
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    # The umbrella is published to PyPI as marin-core; the name "marin" only
-    # exists as stale GitHub-release wheels (0.99.dev*) that outrank fresh PyPI
-    # builds (0.2.x.dev*) by version number, so we use marin-core here.
+    # The marin umbrella package is published to PyPI as marin-core.
     "marin-core",
     "marin-levanter",
     "marin-iris",
@@ -48,12 +46,6 @@ override-dependencies = [
     "datasets>=3.1.0,<4.0.0",
     "equinox>=0.11.10",
 ]
-
-# marin-* packages (marin-core, marin-levanter, marin-haliax, marin-iris,
-# marin-zephyr, marin-rigging, marin-fray, marin-finelog) resolve from PyPI
-# as nightly 0.2.x.dev wheels. The *-latest GitHub-release find-links are
-# intentionally dropped: they serve stale 0.99.dev wheels that outrank the
-# fresh 0.2.x.dev PyPI builds by version number.
 
 # marin depends on resiliparse>=0.17.2 which only exists on this custom index.
 # Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv

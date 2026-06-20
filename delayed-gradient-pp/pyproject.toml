@@ -8,8 +8,7 @@ version = "0.1.0"
 description = "Delayed-gradient / pipeline-parallel staleness experiments for grug MoE, using marin as a library dependency."
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    # The marin umbrella is published to PyPI as `marin-core` (the `marin` name
-    # only exists as stale GitHub-release wheels; see the find-links note below).
+    # The marin umbrella package is published to PyPI as `marin-core`.
     "marin-core",
     "marin-levanter",
     # haliax and fray are imported directly (model.py uses haliax; the launcher
@@ -52,12 +51,6 @@ override-dependencies = [
     "datasets>=3.1.0,<4.0.0",
     "equinox>=0.11.10",
 ]
-
-# The marin-* dev wheels resolve from PyPI (marin-core, marin-levanter, ... as
-# 0.2.x.devYYYYMMDDHHMM, published nightly). We intentionally do NOT add the
-# GitHub `*-latest` release find-links here: those serve `0.99.dev<date>` wheels
-# that (a) are frozen at 2026-05-29 and (b) outrank the fresh PyPI `0.2.x.dev`
-# wheels by version, so including them silently pins stale marin code.
 
 # marin depends on resiliparse>=0.17.2 which only exists on this custom index.
 # Mirrored from submodules/marin/lib/marin/pyproject.toml. Without it, uv
