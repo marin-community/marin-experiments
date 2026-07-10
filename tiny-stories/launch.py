@@ -19,7 +19,7 @@ Launch on a local iris cluster (CPU smoke test):
 
     iris --cluster=local cluster start --local
     MARIN_PREFIX=/tmp/marin ACCELERATOR=cpu \\
-        uv run iris --config=submodules/marin/lib/iris/examples/local.yaml \\
+        uv run iris --config=<marin checkout>/lib/iris/config/examples/local.yaml \\
         job run -- python launch.py
 """
 
@@ -86,7 +86,9 @@ def _resolve_resources() -> ResourceConfig:
 
 def _resolve_steps() -> int:
     # CPU is a smoke test — a couple of dozen steps is enough to prove the pipe works.
-    return int(os.environ.get("TINY_STORIES_STEPS", "1" if _accelerator() == "cpu" else "2000"))
+    return int(
+        os.environ.get("TINY_STORIES_STEPS", "1" if _accelerator() == "cpu" else "2000")
+    )
 
 
 def _resolve_batch_size() -> int:
@@ -143,7 +145,9 @@ tinystories_tokenized = ExecutorStep(
     fn=tokenize,
     config=TokenizeConfig(
         train_paths=[output_path_of(tinystories_download, "data/train-*.parquet")],
-        validation_paths=[output_path_of(tinystories_download, "data/validation-*.parquet")],
+        validation_paths=[
+            output_path_of(tinystories_download, "data/validation-*.parquet")
+        ],
         cache_path=this_output_path(),
         tokenizer=versioned(MARIN_TOKENIZER),
         format=TextLmDatasetFormat(),
@@ -172,7 +176,9 @@ def run_tiny_stories_trial(config: TinyStoriesLaunchConfig) -> None:
         seed=config.seed,
         train_batch_size=config.batch_size,
         num_train_steps=config.steps,
-        profiler=ProfilerConfig(enabled=False, start_step=5, num_steps=100, perfetto_link=False),
+        profiler=ProfilerConfig(
+            enabled=False, start_step=5, num_steps=100, perfetto_link=False
+        ),
         mp=jmp.get_policy(config.mp),
         tracker=_resolve_tracker(config.tracker, config.run_id),
         use_explicit_mesh_axes=True,
