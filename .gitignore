@@ -77,4 +77,7 @@ dmypy.json
 credentials.json
 *.pem
 
+# Local Claude Code settings (the .claude/skills symlink IS tracked)
+.claude/settings.local.json
+
 submodules/
