@@ -1,0 +1,82 @@
+# Third rung of the nightly coverage ladder:
+#
+#   05:23  repin-lockfiles.yml     locks resolve and install     (resolution freshness)
+#   06:40  dry-run-import-fix.yml  imports + config construction (+ agent auto-fix PR)
+#   08:17  this workflow           the pipeline actually RUNS end-to-end on CPU
+#
+# A dry run cannot catch runtime drift: a nightly wheel can import and
+# construct configs cleanly while behavior underneath has changed (e.g.
+# levanter's load_checkpoint() dropping its discover_latest kwarg, or grug's
+# Pbatch growing a replica_dcn axis — both only explode once training
+# executes). This workflow runs each template's documented CPU smoke test
+# (download → tokenize → train → checkpoint) on the GitHub runner and files or
+# refreshes a GitHub issue per broken template. It runs after the other two so
+# a red canary means genuinely runtime-level breakage against fresh locks plus
+# any automerged import fixes.
+name: E2E canary
+
+on:
+  schedule:
+    # Daily 08:17 UTC — after repin (05:23) and the dry-run fixer (06:40) so
+    # this tests current wheels plus any automerged import fixes. Minute chosen
+    # off the hour to dodge the scheduled-job thundering herd.
+    - cron: "17 8 * * *"
+  workflow_dispatch: {}
+
+# Never let two canary runs stack up on a slow day.
+concurrency:
+  group: canary-e2e
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    # Deliberately ABOVE the run step's timeout-minutes: a hung run then fails
+    # the step (failure(), so the reporting steps still execute) instead of
+    # tripping the job timeout (cancelled(), which force-kills them). Mirrors
+    # marin's canary-ferry workflows.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write # file/refresh the canary failure issue
+    env:
+      # 20 optimizer steps instead of the template's 1-step CPU default: a
+      # multi-step run exercises the data loader and train loop for real while
+      # staying around a minute on a ~30M model.
+      TINY_STORIES_STEPS: "20"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run templates end-to-end on CPU
+        timeout-minutes: 75
+        run: |
+          python .github/scripts/nightly_e2e_canary.py run \
+            --results "$RUNNER_TEMP/canary-results.json" \
+            --logs-dir "$RUNNER_TEMP/canary-logs"
+
+      - name: Upload full canary logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-logs
+          path: ${{ runner.temp }}/canary-logs
+          retention-days: 14
+
+      - name: File / refresh GitHub issue for failures
+        # Scheduled runs only, so manual workflow_dispatch experiments never
+        # spam the issue tracker (mirrors marin's canary triage gating).
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/nightly_e2e_canary.py report \
+            --results "$RUNNER_TEMP/canary-results.json"
