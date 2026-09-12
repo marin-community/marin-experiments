@@ -36,7 +36,10 @@ from levanter.callbacks.state_adapter import StateCallbackRunner
 from levanter.callbacks.watch import WatchConfig, compute_watch_stats
 from levanter.checkpoint import load_checkpoint
 from levanter.data import AsyncDataset, DataLoader
-from levanter.data.mixture import MixtureDataset, rescale_mixture_schedule_for_batch_schedule
+from levanter.data.mixture import (
+    MixtureDataset,
+    rescale_mixture_schedule_for_batch_schedule,
+)
 from levanter.data.text import GrugLmExample, LmDataConfig
 from levanter.data.text.examples import grug_lm_example_from_named
 from levanter.eval import TaggedEvaluator, cb_tagged_evaluate
@@ -118,7 +121,11 @@ def _checkpoint_candidates(checkpoint_path: str) -> list[str]:
             return f"{base_path_protocol}://{path}"
         return path
 
-    checkpoint_dirs = [maybe_unstrip_protocol(d) for d in fs.glob(os.path.join(plain_path, "*")) if fs.isdir(d)]
+    checkpoint_dirs = [
+        maybe_unstrip_protocol(d)
+        for d in fs.glob(os.path.join(plain_path, "*"))
+        if fs.isdir(d)
+    ]
     checkpoint_dirs.append(checkpoint_path)
 
     candidates: list[tuple[int, str, str]] = []
@@ -131,7 +138,11 @@ def _checkpoint_candidates(checkpoint_path: str) -> list[str]:
             with fs.open(metadata_path) as metadata_in:
                 metadata = json.load(metadata_in)
         except Exception:
-            logger.warning("Skipping unreadable checkpoint metadata at %s", metadata_path, exc_info=True)
+            logger.warning(
+                "Skipping unreadable checkpoint metadata at %s",
+                metadata_path,
+                exc_info=True,
+            )
             continue
 
         step = metadata.get("step")
@@ -163,7 +174,9 @@ def restore_grug_state_from_checkpoint(
 ) -> StateT:
     if checkpoint_path is None:
         if load_checkpoint_setting:
-            raise FileNotFoundError("load_checkpoint=True but no checkpoint path is configured.")
+            raise FileNotFoundError(
+                "load_checkpoint=True but no checkpoint path is configured."
+            )
         return state
 
     if load_checkpoint_setting is False:
@@ -187,7 +200,9 @@ def restore_grug_state_from_checkpoint(
         except FileNotFoundError as exc:
             last_error = exc
             logger.warning(
-                "Checkpoint candidate %s could not be loaded (%s). Trying an older checkpoint.", candidate, exc
+                "Checkpoint candidate %s could not be loaded (%s). Trying an older checkpoint.",
+                candidate,
+                exc,
             )
 
     if load_checkpoint_setting is True:
@@ -214,7 +229,6 @@ def _load_candidate_state(
         return load_fn(
             state,
             candidate,
-            discover_latest=False,
             axis_mapping=None,
             mesh=mesh,
             allow_partial=allow_partial,
@@ -224,7 +238,6 @@ def _load_candidate_state(
         wrapped = load_fn(
             {"train_state": state},
             candidate,
-            discover_latest=False,
             axis_mapping=None,
             mesh=mesh,
             allow_partial=allow_partial,
@@ -242,11 +255,15 @@ def _load_candidate_state(
 class GrugTrainerConfig:
     """Runtime knobs for grug training."""
 
-    trainer: TrainerConfig = field(default_factory=lambda: TrainerConfig(use_explicit_mesh_axes=True))
-    train_batch_pspec: P = field(default_factory=lambda: P(("data",)))
+    trainer: TrainerConfig = field(
+        default_factory=lambda: TrainerConfig(use_explicit_mesh_axes=True)
+    )
+    train_batch_pspec: P = field(default_factory=lambda: P(("replica_dcn", "data")))
     data_seed: int | None = None
     log_every: int = 1
-    ema_beta: float | None = None  # EMA coefficient for eval/checkpoint model; None disables EMA.
+    ema_beta: float | None = (
+        None  # EMA coefficient for eval/checkpoint model; None disables EMA.
+    )
     z_loss_weight: float = 0.0  # Weight on logsumexp (z-loss) stabilization term.
 
 
@@ -255,7 +272,7 @@ class GrugEvalConfig:
     """Perplexity eval settings for grug training."""
 
     eval_batch_size: int = 512
-    eval_batch_pspec: P = field(default_factory=lambda: P(("data",)))
+    eval_batch_pspec: P = field(default_factory=lambda: P(("replica_dcn", "data")))
     steps_per_eval: int | None = 1000
     max_eval_batches: int | None = None
     prefix: str = "eval"
@@ -290,7 +307,9 @@ def build_train_dataset(
         weights = rescale_mixture_schedule_for_batch_schedule(weights, batch_schedule)
 
     initial_batch_size = batch_schedule.batch_size_at_step(0)
-    datasets = data_config.train_sets(pos, key=shuffle_key, initial_batch_size=initial_batch_size)
+    datasets = data_config.train_sets(
+        pos, key=shuffle_key, initial_batch_size=initial_batch_size
+    )
     return MixtureDataset(
         datasets=datasets,
         weights=weights,
@@ -305,7 +324,7 @@ def build_train_loader(
     *,
     batch_schedule: BatchSchedule,
     mesh: Mesh,
-    batch_pspec: P = P(("data",)),
+    batch_pspec: P = P(("replica_dcn", "data")),
 ) -> DataLoader[GrugLmExample]:
     # DataLoader uses this batch axis mapping to shard batches across the distributed mesh.
     axis_resource = batch_pspec[0]
@@ -342,7 +361,9 @@ def build_tagged_evaluator(
     eval_batch = Axis("batch", eval_cfg.eval_batch_size)
     eval_array_sharding = NamedSharding(mesh, P(batch_axis_resource, None))
 
-    def eval_loss_fn(model: Transformer, batch: LmExample | GrugLmExample) -> tuple[jax.Array, jax.Array, jax.Array]:
+    def eval_loss_fn(
+        model: Transformer, batch: LmExample | GrugLmExample
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         if isinstance(batch, LmExample):
             batch = grug_lm_example_from_named(batch)
         per_pos_loss = model.next_token_loss(
@@ -392,7 +413,9 @@ def _compute_flops(
     return flops_per_example, flops_summary
 
 
-def _make_mixture_stage_callback(train_dataset: MixtureDataset, batch_schedule: BatchSchedule):
+def _make_mixture_stage_callback(
+    train_dataset: MixtureDataset, batch_schedule: BatchSchedule
+):
     last_mixture_stage = -1
 
     def log_mixture_stage(step_info):
@@ -404,7 +427,9 @@ def _make_mixture_stage_callback(train_dataset: MixtureDataset, batch_schedule: 
             return
 
         weights = train_dataset.weight_stages[stage][1]
-        mixture_log = {f"mixture/weight/{name}": weight for name, weight in weights.items()}
+        mixture_log = {
+            f"mixture/weight/{name}": weight for name, weight in weights.items()
+        }
         mixture_log["mixture/stage"] = stage
         levanter.tracker.log(mixture_log, step=step_info.step)
         last_mixture_stage = stage
@@ -450,7 +475,9 @@ def _make_train_step(
     z_loss = z_loss_weight if z_loss_weight > 0 else None
     if watch_config is not None:
         if isinstance(watch_config.watch_targets, str):
-            watch_targets = tuple(t.strip() for t in watch_config.watch_targets.split(","))
+            watch_targets = tuple(
+                t.strip() for t in watch_config.watch_targets.split(",")
+            )
         else:
             watch_targets = tuple(watch_config.watch_targets)
     else:
@@ -593,24 +620,36 @@ def _run_grug_local(config: GrugRunConfig) -> None:
             )
 
         profiler_cfg = trainer.profiler
-        profiler_num_steps = profiler_cfg.resolve_num_profile_steps(num_train_steps=trainer.num_train_steps)
+        profiler_num_steps = profiler_cfg.resolve_num_profile_steps(
+            num_train_steps=trainer.num_train_steps
+        )
         profiler_enabled = profiler_cfg.is_enabled and profiler_num_steps > 0
 
         log_every = max(1, config.trainer.log_every)
-        iterator = LoadingTimeTrackerIterator(train_loader.iter_from_step(int(state.step)))
+        iterator = LoadingTimeTrackerIterator(
+            train_loader.iter_from_step(int(state.step))
+        )
 
         state_callbacks = StateCallbackRunner[GrugTrainState](
             step_getter=lambda s: s.step,
             model_getter=lambda s: s.params,
-            eval_model_getter=lambda s: s.ema_params if s.ema_params is not None else s.params,
+            eval_model_getter=lambda s: (
+                s.ema_params if s.ema_params is not None else s.params
+            ),
             opt_state_getter=lambda s: s.opt_state,
         )
         state_callbacks.add_hook(
-            callbacks.log_performance_stats(config.model.max_seq_len, batch_schedule, flops_per_example),
+            callbacks.log_performance_stats(
+                config.model.max_seq_len, batch_schedule, flops_per_example
+            ),
             every=log_every,
         )
-        state_callbacks.add_hook(callbacks.pbar_logger(total=trainer.num_train_steps), every=log_every)
-        state_callbacks.add_hook(callbacks.log_step_info(trainer.num_train_steps), every=log_every)
+        state_callbacks.add_hook(
+            callbacks.pbar_logger(total=trainer.num_train_steps), every=log_every
+        )
+        state_callbacks.add_hook(
+            callbacks.log_step_info(trainer.num_train_steps), every=log_every
+        )
         if profiler_enabled:
             state_callbacks.add_hook(
                 callbacks.profile(
@@ -621,11 +660,17 @@ def _run_grug_local(config: GrugRunConfig) -> None:
                 ),
                 every=1,
             )
-        state_callbacks.add_hook(_make_mixture_stage_callback(train_dataset, batch_schedule), every=1)
+        state_callbacks.add_hook(
+            _make_mixture_stage_callback(train_dataset, batch_schedule), every=1
+        )
         if evaluator is not None and eval_cfg is not None:
             interval = eval_cfg.steps_per_eval
             eval_ema = eval_cfg.eval_ema and config.trainer.ema_beta is not None
-            if interval is not None and interval > 0 and (eval_cfg.eval_current or eval_ema):
+            if (
+                interval is not None
+                and interval > 0
+                and (eval_cfg.eval_current or eval_ema)
+            ):
                 state_callbacks.add_hook(
                     cb_tagged_evaluate(
                         evaluator,
@@ -648,20 +693,31 @@ def _run_grug_local(config: GrugRunConfig) -> None:
                 current_step = int(state.step)
                 # grad_watch runs only on its configured interval.
                 compute_watch = (
-                    watch_config.is_enabled and watch_config.interval > 0 and current_step % watch_config.interval == 0
+                    watch_config.is_enabled
+                    and watch_config.interval > 0
+                    and current_step % watch_config.interval == 0
                 )
-                state, metrics, watch_stats = train_step(state, batch, compute_watch=compute_watch)
+                state, metrics, watch_stats = train_step(
+                    state, batch, compute_watch=compute_watch
+                )
                 step = int(state.step) - 1
 
                 jax.block_until_ready(metrics["train/loss"])
                 duration = time.perf_counter() - step_start
                 hook_start = time.perf_counter()
                 with jax.profiler.TraceAnnotation("callbacks"):
-                    state_callbacks.run(state, loss=metrics["train/loss"], step_duration=duration)
+                    state_callbacks.run(
+                        state, loss=metrics["train/loss"], step_duration=duration
+                    )
                     last_loss = metrics["train/loss"]
                     last_step_duration = duration
-                    levanter.tracker.log({"throughput/hook_time": time.perf_counter() - hook_start}, step=step)
-                    levanter.tracker.log({"throughput/loading_time": iterator.this_load_time}, step=step)
+                    levanter.tracker.log(
+                        {"throughput/hook_time": time.perf_counter() - hook_start},
+                        step=step,
+                    )
+                    levanter.tracker.log(
+                        {"throughput/loading_time": iterator.this_load_time}, step=step
+                    )
 
                     if watch_stats is not None:
                         levanter.tracker.log(watch_stats, step=step)
@@ -675,7 +731,9 @@ def _run_grug_local(config: GrugRunConfig) -> None:
             raise
         else:
             # Mirror classic trainer behavior: force callbacks on the last completed step.
-            state_callbacks.run(state, loss=last_loss, step_duration=last_step_duration, force=True)
+            state_callbacks.run(
+                state, loss=last_loss, step_duration=last_step_duration, force=True
+            )
             if checkpointer is not None:
                 checkpointer.on_step(tree=state, step=int(state.step), force=True)
                 checkpointer.wait_until_finished()

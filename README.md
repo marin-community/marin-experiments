@@ -40,6 +40,12 @@ ACCELERATOR=cpu MARIN_PREFIX=/tmp/marin uv run python launch.py
 
 Finishes in under a minute for `tiny-stories`, ~3 min for `speech-asr` (Mimi on CPU dominates).
 
+This same smoke test runs nightly in CI against the latest nightly wheels
+([`canary-e2e.yml`](.github/workflows/canary-e2e.yml)); when upstream runtime
+drift breaks a template, the workflow files a GitHub issue. Templates that
+cannot run accelerator-free opt out with `[tool.marin-experiments]
+e2e_canary = false` in their `pyproject.toml`.
+
 ### 5. Scale up on the shared marin cluster
 
 Once the smoke test passes, submit the same `launch.py` to the shared marin TPU cluster via [iris](https://github.com/marin-community/iris):
@@ -77,5 +83,6 @@ README.md            # this file
 AGENTS.md            # repo-level guidance for Claude / other agents
 tiny-stories/        # text template
 speech-asr/          # audio template
-submodules/marin/    # marin source (for local iris config; not imported)
+delayed-gradient-pp/ # pipeline-parallel staleness experiment (accelerator-only)
+.github/             # nightly automation: repin locks, dry-run import fixer, e2e canary
 ```

@@ -34,6 +34,13 @@ tpu = ["marin-core[tpu]; sys_platform == 'linux'"]
 [dependency-groups]
 dev = []
 
+# This experiment cannot run the nightly e2e CPU canary: launch.py hardcodes
+# require_accelerator=True and data.py pins pre-tokenized GCS caches, so there
+# is no accelerator-free, cloud-free path. Dry-run coverage
+# (dry-run-import-fix.yml) is its ceiling.
+[tool.marin-experiments]
+e2e_canary = false
+
 [tool.uv]
 fork-strategy = "fewest"
 prerelease = "allow"

@@ -66,8 +66,8 @@ NO_SELF_CREDIT_SETTINGS = ("--settings", '{"attribution":{"commit":"","pr":""}}'
 
 
 @dataclasses.dataclass(frozen=True)
-class DryRunResult:
-    """Outcome of dry-running one template."""
+class TemplateRunResult:
+    """Outcome of running one template's launch.py (dry run or e2e)."""
 
     name: str  # template directory name, e.g. "tiny-stories"
     ok: bool
@@ -97,12 +97,16 @@ def discover_templates(root: Path) -> list[Path]:
     templates = [
         child
         for child in sorted(root.iterdir())
-        if child.is_dir() and (child / "launch.py").is_file() and (child / "pyproject.toml").is_file()
+        if child.is_dir()
+        and (child / "launch.py").is_file()
+        and (child / "pyproject.toml").is_file()
     ]
     return templates
 
 
-def _run(cmd: list[str], cwd: Path, env: dict[str, str], timeout: int | None = None) -> subprocess.CompletedProcess:
+def _run(
+    cmd: list[str], cwd: Path, env: dict[str, str], timeout: int | None = None
+) -> subprocess.CompletedProcess:
     """Run a command capturing combined stdout+stderr as text."""
     return subprocess.run(
         cmd,
@@ -128,16 +132,32 @@ def prepare_env(template: Path, env: dict[str, str]) -> tuple[bool, str]:
     sync = _run(["uv", "sync"], cwd=template, env=env)
     if sync.returncode == 0:
         return True, sync.stdout
-    logger.warning("`uv sync` failed for %s; attempting `uv lock --upgrade` recovery", template.name)
+    logger.warning(
+        "`uv sync` failed for %s; attempting `uv lock --upgrade` recovery",
+        template.name,
+    )
     relock = _run(["uv", "lock", "--upgrade"], cwd=template, env=env)
     if relock.returncode != 0:
         return False, sync.stdout + "\n--- uv lock --upgrade ---\n" + relock.stdout
     resync = _run(["uv", "sync"], cwd=template, env=env)
-    return resync.returncode == 0, sync.stdout + "\n--- uv lock --upgrade ---\n" + relock.stdout + resync.stdout
+    return (
+        resync.returncode == 0,
+        sync.stdout + "\n--- uv lock --upgrade ---\n" + relock.stdout + resync.stdout,
+    )
 
 
-def dry_run_template(template: Path, marin_prefix: Path) -> DryRunResult:
-    """Dry-run one template and report whether it imports and resolves cleanly."""
+def run_template(
+    template: Path,
+    marin_prefix: Path,
+    *,
+    launch_args: tuple[str, ...],
+    timeout: int,
+) -> TemplateRunResult:
+    """Run one template's launch.py on CPU and capture the outcome.
+
+    Shared by the nightly dry run (``launch_args=("--dry_run", "true")``) and
+    the e2e canary (no extra args, so the pipeline actually executes).
+    """
     # CPU keeps require_accelerator False and steers the templates onto their
     # smoke-test branches; a local MARIN_PREFIX keeps the executor's status
     # reads on the local filesystem instead of GCS.
@@ -145,42 +165,54 @@ def dry_run_template(template: Path, marin_prefix: Path) -> DryRunResult:
         **os.environ,
         "ACCELERATOR": "cpu",
         "MARIN_PREFIX": str(marin_prefix / template.name),
-        # Never let a stray credential push wandb/network work during a dry run.
+        # Never let a stray credential push wandb/network work during CI runs.
         "WANDB_MODE": "disabled",
     }
 
     prepared, prep_output = prepare_env(template, env)
     if not prepared:
         logger.error("Environment prep failed for %s", template.name)
-        return DryRunResult(name=template.name, ok=False, output=prep_output)
+        return TemplateRunResult(name=template.name, ok=False, output=prep_output)
 
-    logger.info("Dry-running %s", template.name)
+    logger.info(
+        "Running %s (launch args: %s)", template.name, list(launch_args) or "none"
+    )
     try:
         proc = _run(
-            # draccus renders the bool `dry_run` field as a flag that takes an
-            # explicit value, so it must be `--dry_run true`, not a bare flag.
-            ["uv", "run", "python", "launch.py", "--dry_run", "true"],
+            ["uv", "run", "python", "launch.py", *launch_args],
             cwd=template,
             env=env,
-            timeout=DRY_RUN_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         captured = exc.output or ""
         if isinstance(captured, bytes):
             captured = captured.decode("utf-8", errors="replace")
-        return DryRunResult(
+        return TemplateRunResult(
             name=template.name,
             ok=False,
-            output=f"{captured}\n\nTIMEOUT after {DRY_RUN_TIMEOUT_SECONDS}s",
+            output=f"{captured}\n\nTIMEOUT after {timeout}s",
         )
 
     ok = proc.returncode == 0
     log = logger.info if ok else logger.error
-    log("Dry run for %s exited %d", template.name, proc.returncode)
-    return DryRunResult(name=template.name, ok=ok, output=proc.stdout)
+    log("Run for %s exited %d", template.name, proc.returncode)
+    return TemplateRunResult(name=template.name, ok=ok, output=proc.stdout)
 
 
-def build_prompt(failures: list[DryRunResult], branch: str) -> str:
+def dry_run_template(template: Path, marin_prefix: Path) -> TemplateRunResult:
+    """Dry-run one template and report whether it imports and resolves cleanly."""
+    # draccus renders the bool `dry_run` field as a flag that takes an explicit
+    # value, so it must be `--dry_run true`, not a bare flag.
+    return run_template(
+        template,
+        marin_prefix,
+        launch_args=("--dry_run", "true"),
+        timeout=DRY_RUN_TIMEOUT_SECONDS,
+    )
+
+
+def build_prompt(failures: list[TemplateRunResult], branch: str) -> str:
     """Build the headless-agent prompt for fixing the failing templates."""
     sections = []
     for result in failures:
@@ -300,7 +332,10 @@ def run_agent(prompt: str, root: Path) -> int:
         "--",
         prompt,
     ]
-    logger.info("Invoking Claude Code to fix %d failing template(s)", prompt.count("### Template:"))
+    logger.info(
+        "Invoking Claude Code to fix %d failing template(s)",
+        prompt.count("### Template:"),
+    )
     proc = subprocess.run(cmd, cwd=root, check=False)
     return proc.returncode
 
@@ -308,12 +343,18 @@ def run_agent(prompt: str, root: Path) -> int:
 def checkout_branch(root: Path, branch: str) -> None:
     """Reset a local working branch to the latest origin/main."""
     subprocess.run(["git", "fetch", "origin", "main"], cwd=root, check=True)
-    subprocess.run(["git", "checkout", "-B", branch, "origin/main"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "checkout", "-B", branch, "origin/main"], cwd=root, check=True
+    )
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    parser = argparse.ArgumentParser(description="Nightly dry-run smoke test + import-drift fixer")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
+    parser = argparse.ArgumentParser(
+        description="Nightly dry-run smoke test + import-drift fixer"
+    )
     parser.add_argument(
         "--run-id",
         default="local",
@@ -329,9 +370,16 @@ def main() -> int:
     root = repo_root()
     templates = discover_templates(root)
     if not templates:
-        logger.error("No templates found under %s (expected dirs with launch.py + pyproject.toml).", root)
+        logger.error(
+            "No templates found under %s (expected dirs with launch.py + pyproject.toml).",
+            root,
+        )
         return 1
-    logger.info("Discovered %d template(s): %s", len(templates), ", ".join(t.name for t in templates))
+    logger.info(
+        "Discovered %d template(s): %s",
+        len(templates),
+        ", ".join(t.name for t in templates),
+    )
 
     with tempfile.TemporaryDirectory(prefix="nightly-dry-run-") as tmp:
         marin_prefix = Path(tmp)
@@ -342,10 +390,16 @@ def main() -> int:
         logger.info("  %s: %s", result.name, "OK" if result.ok else "FAILED")
 
     if not failures:
-        logger.info("All %d template(s) dry-run cleanly. Nothing to fix.", len(templates))
+        logger.info(
+            "All %d template(s) dry-run cleanly. Nothing to fix.", len(templates)
+        )
         return 0
 
-    logger.warning("%d template(s) failed dry run: %s", len(failures), ", ".join(r.name for r in failures))
+    logger.warning(
+        "%d template(s) failed dry run: %s",
+        len(failures),
+        ", ".join(r.name for r in failures),
+    )
 
     if args.check_only:
         logger.info("--check-only set; not invoking the agent.")

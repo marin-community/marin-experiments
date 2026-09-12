@@ -21,7 +21,7 @@ Launch on a local iris cluster (CPU smoke test):
 
     iris --cluster=local cluster start --local
     MARIN_PREFIX=/tmp/marin ACCELERATOR=cpu \\
-        uv run iris --config=submodules/marin/lib/iris/examples/local.yaml \\
+        uv run iris --config=<marin checkout>/lib/iris/config/examples/local.yaml \\
         job run -- python launch.py
 """
 
@@ -78,7 +78,9 @@ def _resolve_audio_resources() -> ResourceConfig:
     """
     kind = _accelerator()
     if kind == "gpu":
-        return ResourceConfig(cpu=4, ram="32g", disk="40g", device=GpuConfig(variant="l4", count=1))
+        return ResourceConfig(
+            cpu=4, ram="32g", disk="40g", device=GpuConfig(variant="l4", count=1)
+        )
     return ResourceConfig(cpu=4, ram="16g", disk="20g", device=CpuConfig())
 
 
@@ -116,11 +118,17 @@ def _resolve_train_resources() -> ResourceConfig:
 def _resolve_vocab_size() -> int:
     # Tiny vocab on CPU so the smoke corpus (20 clips) trains in seconds;
     # full-size vocab on real runs.
-    return int(os.environ.get("SPEECH_BPE_VOCAB", "2048" if _accelerator() == "cpu" else "16384"))
+    return int(
+        os.environ.get(
+            "SPEECH_BPE_VOCAB", "2048" if _accelerator() == "cpu" else "16384"
+        )
+    )
 
 
 def _resolve_steps() -> int:
-    return int(os.environ.get("SPEECH_ASR_STEPS", "1" if _accelerator() == "cpu" else "2000"))
+    return int(
+        os.environ.get("SPEECH_ASR_STEPS", "1" if _accelerator() == "cpu" else "2000")
+    )
 
 
 def _resolve_batch_size() -> int:
@@ -190,7 +198,9 @@ _LIBRISPEECH_GLOBS_FULL = ["clean/train.100/*.parquet", "clean/validation/*.parq
 
 
 def _resolve_librispeech_globs() -> list[str]:
-    return _LIBRISPEECH_GLOBS_SMOKE if _accelerator() == "cpu" else _LIBRISPEECH_GLOBS_FULL
+    return (
+        _LIBRISPEECH_GLOBS_SMOKE if _accelerator() == "cpu" else _LIBRISPEECH_GLOBS_FULL
+    )
 
 
 librispeech_download = download_hf_step(
@@ -268,7 +278,9 @@ def run_speech_asr_trial(config: SpeechAsrLaunchConfig) -> None:
         seed=config.seed,
         train_batch_size=config.batch_size,
         num_train_steps=config.steps,
-        profiler=ProfilerConfig(enabled=False, start_step=5, num_steps=100, perfetto_link=False),
+        profiler=ProfilerConfig(
+            enabled=False, start_step=5, num_steps=100, perfetto_link=False
+        ),
         mp=jmp.get_policy(config.mp),
         tracker=_resolve_tracker(config.tracker, config.run_id),
         use_explicit_mesh_axes=True,
@@ -345,6 +357,12 @@ speech_trial = ExecutorStep(
 
 if __name__ == "__main__":
     executor_main(
-        steps=[librispeech_download, librispeech_audio_tokens, librispeech_bpe, librispeech_tokenized, speech_trial],
+        steps=[
+            librispeech_download,
+            librispeech_audio_tokens,
+            librispeech_bpe,
+            librispeech_tokenized,
+            speech_trial,
+        ],
         description=f"speech-asr: LibriSpeech speech-token training ({_accelerator()}).",
     )
