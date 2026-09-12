@@ -75,7 +75,8 @@ repo a while ago you'll need to repin yourself.
 ```
 README.md            # this file
 AGENTS.md            # repo-level guidance for Claude / other agents
+.agents/skills/      # skills shared by downstream consumer repos (marin-dna, MarinFold, ...)
 tiny-stories/        # text template
 speech-asr/          # audio template
-submodules/marin/    # marin source (for local iris config; not imported)
+delayed-gradient-pp/ # delayed-gradient pipeline-parallelism experiment
 ```
